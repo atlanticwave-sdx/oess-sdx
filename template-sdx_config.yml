@@ -1,0 +1,10 @@
+oxp_name: TestOXP
+oxp_url: test-oxp.net
+model_version: "2.0.0"
+oess_url: "https://127.0.0.1:443/oess"
+username: "admin"
+password: "xxxxx"
+workgroup_id: "1"
+interfaces:
+  10:
+    sdx_nni: "otherdomain.net:node02:1"
