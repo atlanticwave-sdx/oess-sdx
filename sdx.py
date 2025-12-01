@@ -92,6 +92,9 @@ def get_intf_config(interface):
     interfaces = sdx_config.get("interfaces", {})
     if not interfaces or not isinstance(interfaces, dict):
         return {}
+    intf_name = f"{interface['node']['name']}:{interface['name']}"
+    if intf_name in interfaces:
+        return interfaces[intf_name]
     return interfaces.get(int(interface["interface_id"]), {})
 
 
@@ -188,7 +191,9 @@ def get_sdx_port(interface):
         sdx_port["nni"] = ""
 
     vlan_range = intf_config.get("sdx_vlan_range")
-    if not vlan_range:
+    if vlan_range is None:
+        vlan_range = sdx_config.get("overwrite_vlan_range")
+    if vlan_range is None:
         vlan_range = interface.get("mpls_vlan_tag_range")
         if vlan_range:
             vlans = vlan_range.split("-")
@@ -200,9 +205,12 @@ def get_sdx_port(interface):
             vlan_range = [[1, 4095]]
 
     sdx_port["services"] = {
-        "l2vpn-ptp": {"vlan_range": vlan_range},
         # "l2vpn-ptmp":{"vlan_range": vlan_range}
     }
+    if vlan_range:
+        sdx_port["services"]["l2vpn-ptp"] = {"vlan_range": vlan_range}
+
+    sdx_port["entities"] = intf_config.get("entities", [])
 
     sdx_port["private"] = ["status"]
 
@@ -652,7 +660,18 @@ def get_admin_map_oess2sdx():
 
 @app.route("/admin/sdx2oess", methods=["GET"])
 def get_admin_map_sdx2oess():
-    return jsonify(sdx2oess), 200
+    non_circular_dict = {}
+    for intf_sdx, intf_oess in sdx2oess.items():
+        intf2 = intf_oess.copy()
+        intf2["node"] = intf_oess["node"].copy()
+        intf2["node"]["interfaces"] = "[...]"
+        if "link" in intf_oess:
+            intf2["link"] = intf_oess["link"].copy()
+            intf2["link"]["interface_a"] = "{...}"
+            intf2["link"]["interface_z"] = "{...}"
+        non_circular_dict[intf_sdx] = intf2
+    app.logger.warning(non_circular_dict)
+    return jsonify(non_circular_dict), 200
 
 load_config(fallback_prev_config=False)
 try:
